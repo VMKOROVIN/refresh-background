@@ -1,45 +1,49 @@
-
 import time
 import requests
-import os
-import dotenv
 
 from appscript import app, mactypes
-dotenv.load_dotenv()
+
+from app.common import IMAGES_PATH, UNSPLASH_ACCESS_KEY
 
 
+def fetch_wallpaper():
+    """Randomly fetches wallpaper from unsplash.com through api."""
+    url = "https://api.unsplash.com/photos/random"
+    headers = {"Authorization": "Client-ID {}".format(UNSPLASH_ACCESS_KEY)}
 
-def choose_background() -> str:
-    """Randomly choose a new image for the background."""
-    # TODO:
-    UNSPLASH_ACCESS_KEY = os.environ['UNSPLASH_ACCESS_KEY']
-    host = 'https://api.unsplash.com'
-    endpoint = '/photos/random'
-    url = f'{host}{endpoint}' # use Unsplash API to download random image
-    headers = {'Authorization': 'Client-ID {}'.format(UNSPLASH_ACCESS_KEY)
-}
     response = requests.get(url, headers=headers)
-    json_response = response.json()
-    link = json_response['urls']['full']
-    respond = requests.get(link)
-    with open(r'/Users/vadimkorovin/projects/refresh-background/images/Whatever_image.jpg', 'wb') as f:
-        f.write(respond.content) # download image in to images dir
-    path = '/Users/vadimkorovin/projects/refresh-background/images/Whatever_image.jpg' # download image in to images dir
-
-    return str(path)
+    return response
 
 
-def set_background(path: str) -> None:
-    # TODO: check v
+def store_wallpaper(response: requests.Response) -> str:
+    """Downloads random image to the internal folder."""
+    image = response.json()  # dict
+    image_link = image["urls"]["full"]
+    image_id = image["id"]
 
-    app("Finder").desktop_picture.set(mactypes.File(path))
+    response = requests.get(image_link)
+    image_content = response.content
+    filename = f"{image_id}.jpg"
+    image_path = IMAGES_PATH / filename
+
+    with open(image_path, "wb") as jpg_file:
+        jpg_file.write(image_content)
+
+    return str(image_path)
+
+
+def set_background(image_path: str) -> None:
+    """Sets the new wallpaper as a desktop background."""
+    app("Finder").desktop_picture.set(mactypes.File(image_path))
 
 
 def refresh_background() -> None:
-    interval = 60
+    """Refreshes background in a set time period."""
+    interval = 10
     while True:
-        path = choose_background()
-        set_background(path)
+        response = fetch_wallpaper()
+        image_path = store_wallpaper(response)
+        set_background(image_path)
         time.sleep(interval)
 
 
@@ -48,9 +52,6 @@ def main() -> None:
         refresh_background()
     except KeyboardInterrupt:
         pass
-    except Exception as err:
-        print("Unhandled error: {}".format(err))
-        raise
 
 
 if __name__ == "__main__":
